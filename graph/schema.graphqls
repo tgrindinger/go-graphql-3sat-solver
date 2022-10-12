@@ -1,0 +1,57 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+type Query {
+  job(uuid: ID!): Job!
+  solution(uuid: ID!): Solution!
+}
+
+type Mutation {
+  createJob(input: NewJob!): Job!
+}
+
+type Variable {
+  negated: Boolean!
+  name: String!
+}
+
+type Clause {
+  var1: Variable!
+  var2: Variable!
+  var3: Variable!
+}
+
+type Job {
+  name: String!
+  clauses: [Clause]!
+  done: Boolean!
+  uuid: ID!
+}
+
+input NewVariable {
+  negated: Boolean!
+  name: String!
+}
+
+input NewClause {
+  var1: NewVariable!
+  var2: NewVariable!
+  var3: NewVariable!
+}
+
+input NewJob {
+  name: String!
+  clauses: [NewClause]!
+}
+
+type Solution {
+  uuid: ID!
+  variables: [SolvedVariable]!
+  score: Float!
+}
+
+type SolvedVariable {
+  name: String!
+  value: Boolean!
+}
