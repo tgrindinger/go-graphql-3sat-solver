@@ -69,6 +69,8 @@ type ComplexityRoot struct {
 	}
 
 	Solution struct {
+		Cycles    func(childComplexity int) int
+		Elapsed   func(childComplexity int) int
 		Score     func(childComplexity int) int
 		UUID      func(childComplexity int) int
 		Variables func(childComplexity int) int
@@ -100,6 +102,8 @@ type QueryResolver interface {
 type SolutionResolver interface {
 	UUID(ctx context.Context, obj *model.Solution) (string, error)
 	Variables(ctx context.Context, obj *model.Solution) ([]*model.SolvedVariable, error)
+
+	Elapsed(ctx context.Context, obj *model.Solution) (int, error)
 }
 
 type executableSchema struct {
@@ -201,6 +205,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Solution(childComplexity, args["uuid"].(string)), true
+
+	case "Solution.cycles":
+		if e.complexity.Solution.Cycles == nil {
+			break
+		}
+
+		return e.complexity.Solution.Cycles(childComplexity), true
+
+	case "Solution.elapsed":
+		if e.complexity.Solution.Elapsed == nil {
+			break
+		}
+
+		return e.complexity.Solution.Elapsed(childComplexity), true
 
 	case "Solution.score":
 		if e.complexity.Solution.Score == nil {
@@ -373,6 +391,8 @@ type Solution {
   uuid: ID!
   variables: [SolvedVariable]!
   score: Float!
+  cycles: Int!
+  elapsed: Int!
 }
 
 type SolvedVariable {
@@ -994,6 +1014,10 @@ func (ec *executionContext) fieldContext_Query_solution(ctx context.Context, fie
 				return ec.fieldContext_Solution_variables(ctx, field)
 			case "score":
 				return ec.fieldContext_Solution_score(ctx, field)
+			case "cycles":
+				return ec.fieldContext_Solution_cycles(ctx, field)
+			case "elapsed":
+				return ec.fieldContext_Solution_elapsed(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Solution", field.Name)
 		},
@@ -1274,6 +1298,94 @@ func (ec *executionContext) fieldContext_Solution_score(ctx context.Context, fie
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Solution_cycles(ctx context.Context, field graphql.CollectedField, obj *model.Solution) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Solution_cycles(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Cycles, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Solution_cycles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Solution",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Solution_elapsed(ctx context.Context, field graphql.CollectedField, obj *model.Solution) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Solution_elapsed(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Solution().Elapsed(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Solution_elapsed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Solution",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3653,6 +3765,33 @@ func (ec *executionContext) _Solution(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
+		case "cycles":
+
+			out.Values[i] = ec._Solution_cycles(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "elapsed":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Solution_elapsed(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return innerFunc(ctx)
+
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4127,6 +4266,21 @@ func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface
 
 func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
 	res := graphql.MarshalID(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
+	res, err := graphql.UnmarshalInt(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	res := graphql.MarshalInt(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")

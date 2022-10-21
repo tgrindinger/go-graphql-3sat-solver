@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -37,7 +38,11 @@ func buildResolver() *graph.Resolver {
 	solutionRepository := &repositories.InMemorySolutionRepository{}
 	jobFactory := &factories.JobFactory{}
 	solutionFactory := &factories.SolutionFactory{}
-	solver := solvers.NewNaiveSolver(solutionFactory)
+	// solver := solvers.NewNaiveSolver(solutionFactory)
+	duration, _ := time.ParseDuration("10s")
+	randomFactory := &factories.TimeRandomFactory{}
+	populationGenerator := solvers.NewPopulationGenerator(randomFactory)
+	solver := solvers.NewGeneticSolver(10, duration, solutionFactory, populationGenerator, randomFactory)
 	return &graph.Resolver{
 		JobDispatcher: graph.NewJobDispatcher(
 			solver,

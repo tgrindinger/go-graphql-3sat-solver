@@ -157,7 +157,7 @@ func TestSolutionWhenGivenValidInput(t *testing.T) {
 		uuid string
 		solution *model.Solution
 	}{
-		{ "returns found job", uuidOfSolutionWithKnownUuid(), solutionWithKnownUuid() },
+		{ "returns found solution", uuidOfSolutionWithKnownUuid(), solutionWithKnownUuid() },
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {

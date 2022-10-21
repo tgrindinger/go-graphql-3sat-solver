@@ -14,13 +14,16 @@ import (
 func TestHappyPath(t *testing.T) {
 	cases := []struct {
 		desc string
+		name string
 		input *model.NewJob
 		want *model.Solution
 	}{
-		{ "returns a valid solution", simpleJob(), simpleSolution() },
+		{ "returns a valid solution", u.NewString(), simpleJob(), simpleSolution() },
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
+			t.Logf("Creating job '%s'", tc.name)
+			tc.input.Name = tc.name
 			uuid := createJob(t, tc.input)
 			solution := findSolution(t, uuid)
 			assertSolutionsAreEqual(t, solution, tc.want, uuid)

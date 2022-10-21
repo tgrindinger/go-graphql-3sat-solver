@@ -54,6 +54,11 @@ func (r *solutionResolver) Variables(ctx context.Context, obj *model.Solution) (
 	return obj.Variables, nil
 }
 
+// Elapsed is the resolver for the elapsed field.
+func (r *solutionResolver) Elapsed(ctx context.Context, obj *model.Solution) (int, error) {
+	return int(obj.Elapsed.Milliseconds()), nil
+}
+
 // Job returns generated.JobResolver implementation.
 func (r *Resolver) Job() generated.JobResolver { return &jobResolver{r} }
 

@@ -10,18 +10,18 @@ import (
 
 type InMemoryJobRepository struct {
 	jobs []*model.Job
-	m sync.Mutex
+	m sync.RWMutex
 }
 
 func (r* InMemoryJobRepository) FindJob(uuid u.UUID) (*model.Job, error) {
-	r.m.Lock()
+	r.m.RLock()
 	for _, j := range r.jobs {
 		if j.Uuid == uuid {
-			r.m.Unlock()
+			r.m.RUnlock()
 			return j, nil
 		}
 	}
-	r.m.Unlock()
+	r.m.RUnlock()
 	return nil, fmt.Errorf("unable to find job with uuid %s", uuid.String())
 }
 

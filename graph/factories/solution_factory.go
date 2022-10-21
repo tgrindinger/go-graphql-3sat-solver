@@ -1,15 +1,21 @@
 package factories
 
-import "github.com/tgrindinger/go-graphql-3sat-solver/graph/model"
+import (
+	"time"
+
+	"github.com/tgrindinger/go-graphql-3sat-solver/graph/model"
+)
 
 type SolutionFactory struct {
 }
 
-func (f *SolutionFactory) ConstructSolution(variables map[string]bool, job *model.Job) *model.Solution {
+func (f *SolutionFactory) ConstructSolution(variables map[string]bool, job *model.Job, cycles int, elapsed time.Duration) *model.Solution {
 	return &model.Solution{
 		Uuid: job.Uuid,
 		Variables: f.packageSolvedVariables(variables),
 		Score: f.score(variables, job.Clauses),
+		Cycles: cycles,
+		Elapsed: elapsed,
 	}
 }
 

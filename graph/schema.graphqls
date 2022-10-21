@@ -49,6 +49,8 @@ type Solution {
   uuid: ID!
   variables: [SolvedVariable]!
   score: Float!
+  cycles: Int!
+  elapsed: Int!
 }
 
 type SolvedVariable {

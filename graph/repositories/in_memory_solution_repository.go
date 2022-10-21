@@ -10,18 +10,18 @@ import (
 
 type InMemorySolutionRepository struct {
 	solutions []*model.Solution
-	m sync.Mutex
+	m sync.RWMutex
 }
 
 func (r* InMemorySolutionRepository) FindSolution(uuid u.UUID) (*model.Solution, error) {
-	r.m.Lock()
+	r.m.RLock()
 	for _, j := range r.solutions {
 		if j.Uuid == uuid {
-			r.m.Unlock()
+			r.m.RUnlock()
 			return j, nil
 		}
 	}
-	r.m.Unlock()
+	r.m.RUnlock()
 	return nil, fmt.Errorf("unable to find solution with uuid %s", uuid.String())
 }
 
