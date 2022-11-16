@@ -35,8 +35,7 @@ func NewGeneticSolver(
 func (s *geneticSolver) Solve(job *model.Job) *model.Solution {
 	start := time.Now()
 	random := s.randomFactory.Build()
-	variables := job.Variables()
-	population := s.populationGenerator.generatePopulation(s.maxPopulation, variables)
+	population := s.populationGenerator.generatePopulation(s.maxPopulation, job.Variables())
 	bestMember, cycles := s.start(job, population, random)
 	elapsed := time.Since(start)
 	return s.solutionFactory.ConstructSolution(bestMember, job, cycles, elapsed)
@@ -57,18 +56,20 @@ func (s *geneticSolver) evolve(job *model.Job, population population, random *ra
 	start := time.Now()
 	cycles := 0
 	bestMember, bestScore := population.best(job)
-	for time.Since(start) < s.maxTime && bestScore < 1.0 {
-		population = s.reproduce(job, population, random)
+	for time.Since(start) < s.maxTime && bestScore < 1.0 - 0.0001 {
+		population = s.reproduce(job, population, bestMember, random)
 		bestMember, bestScore = population.best(job)
 		cycles++
 	}
 	return bestMember, cycles
 }
 
-func (s *geneticSolver) reproduce(job *model.Job, _population population, random *rand.Rand) population {
-	newPop := population{}
+func (s *geneticSolver) reproduce(job *model.Job, _population population, bestMember member, random *rand.Rand) population {
+	newPop := population{
+		bestMember,
+	}
 	rankedPop := _population.rank(job)
-	for i := 0; i < len(_population); i++ {
+	for i := len(newPop); i < len(_population); i++ {
 		child := s.breed(rankedPop, _population, random)
 		for newPop.memberExists(child) {
 			child = s.breed(rankedPop, _population, random)
@@ -84,5 +85,6 @@ func (s *geneticSolver) breed(memberRanks memberRanks, population population, ra
 	for parent1 == parent2 {
 		parent2 = memberRanks.selectMember(random)
 	}
-	return population[parent1].crossOver(population[parent2], random)
+	crossed := population[parent1].crossOver(population[parent2], random)
+	return crossed.mutate(random)
 }

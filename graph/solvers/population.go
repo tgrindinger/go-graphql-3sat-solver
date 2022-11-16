@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"sort"
 
+	"github.com/samber/lo"
 	"github.com/tgrindinger/go-graphql-3sat-solver/graph/model"
 )
 
@@ -42,18 +43,20 @@ func (p population) rank(job *model.Job) memberRanks {
 	}
 	sort.Sort(sort.Reverse(ranks))
 	normTotal := 0.0
-	for _, rank := range ranks {
+	for index, rank := range ranks {
 		normTotal += rank.fitness / total
-		rank.fitness = normTotal
+		ranks[index].fitness = normTotal
 	}
 	return ranks
 }
 
 func (m member) crossOver(_member member, random *rand.Rand) member {
 	child := member{}
-	for k, v := range m {
+	keys := lo.Keys(m)
+	sort.Strings(keys)
+	for _, k := range keys {
 		if random.Intn(2) == 1 {
-			child[k] = v
+			child[k] = m[k]
 		} else {
 			child[k] = _member[k]
 		}
@@ -62,10 +65,22 @@ func (m member) crossOver(_member member, random *rand.Rand) member {
 }
 
 func (m member) matches(member member) bool {
-	for k, v := range m {
-		if v != member[k] {
-			return false
+	return lo.EveryBy(lo.Keys(m), func(k string) bool {
+		return m[k] == member[k]
+	})
+}
+
+func (m member) mutate(random *rand.Rand) member {
+	rate := 0.01
+	mutated := member{}
+	keys := lo.Keys(m)
+	sort.Strings(keys)
+	for _, k := range keys {
+		if random.Float64() < rate {
+			mutated[k] = !m[k]
+		} else {
+			mutated[k] = m[k]
 		}
 	}
-	return true
+	return mutated
 }

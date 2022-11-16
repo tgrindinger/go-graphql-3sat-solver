@@ -17,8 +17,12 @@ func (f *TimeRandomFactory) Build() *rand.Rand {
 }
 
 type ZeroRandomFactory struct {
+	staticRandom *rand.Rand
 }
 
 func (f *ZeroRandomFactory) Build() *rand.Rand {
-	return rand.New(rand.NewSource(0))
+	if f.staticRandom == nil {
+		f.staticRandom = rand.New(rand.NewSource(0))
+	}
+	return f.staticRandom
 }
