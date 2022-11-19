@@ -34,11 +34,10 @@ func main() {
 }
 
 func buildResolver() *graph.Resolver {
-	jobRepository := &repositories.InMemoryJobRepository{}
+	jobRepository := repositories.NewSqliteJobRepository("jobs.db")
 	solutionRepository := &repositories.InMemorySolutionRepository{}
 	jobFactory := &factories.JobFactory{}
 	solutionFactory := &factories.SolutionFactory{}
-	// solver := solvers.NewNaiveSolver(solutionFactory)
 	duration, _ := time.ParseDuration("10s")
 	randomFactory := &factories.TimeRandomFactory{}
 	populationGenerator := solvers.NewPopulationGenerator(randomFactory)

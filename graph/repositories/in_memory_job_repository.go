@@ -25,14 +25,16 @@ func (r* InMemoryJobRepository) FindJob(uuid u.UUID) (*model.Job, error) {
 	return nil, fmt.Errorf("unable to find job with uuid %s", uuid.String())
 }
 
-func (r* InMemoryJobRepository) InsertJob(job *model.Job) {
+func (r* InMemoryJobRepository) InsertJob(job *model.Job) error {
 	r.m.Lock()
 	r.jobs = append(r.jobs, job)
 	r.m.Unlock()
+	return nil
 }
 
-func (r* InMemoryJobRepository) MarkDone(job *model.Job) {
+func (r* InMemoryJobRepository) MarkDone(job *model.Job) error {
 	r.m.Lock()
 	job.Done = true
 	r.m.Unlock()
+	return nil
 }

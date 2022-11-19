@@ -7,6 +7,6 @@ import (
 
 type JobRepository interface {
 	FindJob(uuid u.UUID) (*model.Job, error)
-	InsertJob(job *model.Job)
-	MarkDone(job *model.Job)
+	InsertJob(job *model.Job) error
+	MarkDone(job *model.Job) error
 }
