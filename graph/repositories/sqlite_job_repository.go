@@ -10,24 +10,21 @@ import (
 )
 
 type SqliteJobRepository struct {
-	firstTime bool
-	dbName string
+	db *sql.DB
 }
 
 func NewSqliteJobRepository(dbName string) *SqliteJobRepository {
-	return &SqliteJobRepository{
-		firstTime: true,
-		dbName: dbName,
-	}
+	repo := &SqliteJobRepository{}
+	repo.openDatabase(dbName)
+	return repo
 }
 
 func (r* SqliteJobRepository) FindJob(uuid u.UUID) (*model.Job, error) {
-	db := r.openDatabase()
-	job, err := r.queryJob(uuid, db)
+	job, err := r.queryJob(uuid)
 	if err != nil {
 		return nil, err
 	}
-	job.Clauses, err = r.queryClauses(uuid, db)
+	job.Clauses, err = r.queryClauses(uuid)
 	if err != nil {
 		return nil, err
 	}
@@ -35,57 +32,72 @@ func (r* SqliteJobRepository) FindJob(uuid u.UUID) (*model.Job, error) {
 }
 
 func (r* SqliteJobRepository) InsertJob(job *model.Job) error {
-	db := r.openDatabase()
-	defer db.Close()
-	err := r.insertJobRow(job, db)
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("unable to create insert job transaction: %v", err)
+	}
+	err = r.insertJobRow(job, tx)
 	if err != nil {
 		return err
 	}
-	err = r.insertClauseRows(job, db)
+	err = r.insertClauseRows(job, tx)
 	if err != nil {
 		return err
 	}
+	tx.Commit()
 	return nil
 }
 
 func (r* SqliteJobRepository) MarkDone(job *model.Job) error {
-	db := r.openDatabase()
-	statement, err := db.Prepare("UPDATE jobs SET done = ?")
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("unable to create mark done transaction: %v", err)
+	}
+	statement, err := tx.Prepare("UPDATE jobs SET done = ? WHERE uuid = ?")
 	if err != nil {
 		return err
 	}
-	_, err = statement.Exec(job.Done)
+	defer statement.Close()
+	_, err = statement.Exec(true, job.Uuid.String())
+	tx.Commit()
 	return err
 }
 
-func (r* SqliteJobRepository) insertJobRow(job *model.Job, db *sql.DB) error {
-	statement, err := db.Prepare("INSERT INTO jobs (uuid, done, name) VALUES (?, ?, ?)")
+func (r* SqliteJobRepository) insertJobRow(job *model.Job, tx *sql.Tx) error {
+	statement, err := tx.Prepare("INSERT INTO jobs (uuid, done, name) VALUES (?, ?, ?)")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create insert job statement: %v", err)
 	}
+	defer statement.Close()
 	_, err = statement.Exec(job.Uuid, job.Done, job.Name)
+	if err != nil {
+		return fmt.Errorf("failed to execute insert job statement: %v", err)
+	}
 	return err
 }
 
-func (r* SqliteJobRepository) insertClauseRows(job *model.Job, db *sql.DB) error {
+func (r* SqliteJobRepository) insertClauseRows(job *model.Job, tx *sql.Tx) error {
+	statement, err := tx.Prepare("INSERT INTO clauses (uuid, var1, var1negated, var2, var2negated, var3, var3negated) VALUES (?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("failed to create insert clause statement: %v", err)
+	}
+	defer statement.Close()
 	for _, clause := range job.Clauses {
-		statement, err := db.Prepare("INSERT INTO clauses (uuid, var1, var1negated, var2, var2negated, var3, var3negated) VALUES (?, ?, ?, ?, ?, ?, ?)")
-		if err != nil {
-			return err
-		}
 		_, err = statement.Exec(job.Uuid.String(), clause.Var1.Name, clause.Var1.Negated, clause.Var2.Name, clause.Var2.Negated, clause.Var3.Name, clause.Var3.Negated)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to execute insert clause statement: %v", err)
 		}
 	}
 	return nil
 }
 
-func (r* SqliteJobRepository) queryJob(uuid u.UUID, db *sql.DB) (*model.Job, error) {
-	jobRow, err := db.Query("SELECT uuid, done, name FROM jobs where uuid = ?", uuid.String())
+func (r* SqliteJobRepository) queryJob(uuid u.UUID) (*model.Job, error) {
+	jobRow, err := r.db.Query("SELECT uuid, done, name FROM jobs where uuid = ?", uuid.String())
 	if err != nil {
-		return nil, err
+		errDesc := fmt.Errorf("failed to query job: %v", err)
+		return nil, errDesc
 	}
+	defer jobRow.Close()
 	job := &model.Job{}
 	found := jobRow.Next()
 	if !found {
@@ -95,11 +107,13 @@ func (r* SqliteJobRepository) queryJob(uuid u.UUID, db *sql.DB) (*model.Job, err
 	return job, nil
 }
 
-func (r* SqliteJobRepository) queryClauses(uuid u.UUID, db *sql.DB) ([]*model.Clause, error) {
-	clauseRows, err := db.Query("SELECT var1, var1negated, var2, var2negated, var3, var3negated FROM clauses WHERE UUID = ?", uuid.String())
+func (r* SqliteJobRepository) queryClauses(uuid u.UUID) ([]*model.Clause, error) {
+	clauseRows, err := r.db.Query("SELECT var1, var1negated, var2, var2negated, var3, var3negated FROM clauses WHERE UUID = ?", uuid.String())
 	if err != nil {
-		return nil, err
+		errDesc := fmt.Errorf("failed to query clauses: %v", err)
+		return nil, errDesc
 	}
+	defer clauseRows.Close()
 	clauses := []*model.Clause{}
 	for clauseRows.Next() {
 		clause := &model.Clause{
@@ -113,33 +127,36 @@ func (r* SqliteJobRepository) queryClauses(uuid u.UUID, db *sql.DB) ([]*model.Cl
 	return clauses, nil
 }
 
-func (r *SqliteJobRepository) openDatabase() *sql.DB {
-	db, err := sql.Open("sqlite3", r.dbName)
+func (r *SqliteJobRepository) openDatabase(dbName string) {
+	var err error
+	r.db, err = sql.Open("sqlite3", dbName)
 	if err != nil {
 		panic(fmt.Sprintf("Unable to open jobs database: %v", err))
 	}
-	if r.firstTime {
-		r.initJobsTable(db)
-		r.initClausesTable(db)
-		r.firstTime = false
-	}
-	return db
+	r.initJobsTable()
+	r.initClausesTable()
 }
 
-func (r *SqliteJobRepository) initJobsTable(db *sql.DB) {
-	statement, err := db.Prepare("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY, uuid STRING, done BOOLEAN, name STRING)")
+func (r *SqliteJobRepository) initJobsTable() {
+	statement, err := r.db.Prepare("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY, uuid STRING, done BOOLEAN, name STRING)")
 	if err != nil {
-		panic(fmt.Sprintf("Unable to create jobs table: %v", err))
+		panic(fmt.Sprintf("Unable to create jobs table statement: %v", err))
 	}
-	statement.Exec()
-	statement.Close()
+	defer statement.Close()
+	_, err = statement.Exec()
+	if err != nil {
+		panic(fmt.Sprintf("unable to execute create jobs table statement: %v", err))
+	}
 }
 
-func (r *SqliteJobRepository) initClausesTable(db *sql.DB) {
-	statement, err := db.Prepare("CREATE TABLE IF NOT EXISTS clauses (id INTEGER PRIMARY KEY, uuid STRING, var1 STRING, var1negated BOOLEAN, var2 STRING, var2negated BOOLEAN, var3 STRING, var3negated BOOLEAN)")
+func (r *SqliteJobRepository) initClausesTable() {
+	statement, err := r.db.Prepare("CREATE TABLE IF NOT EXISTS clauses (id INTEGER PRIMARY KEY, uuid STRING, var1 STRING, var1negated BOOLEAN, var2 STRING, var2negated BOOLEAN, var3 STRING, var3negated BOOLEAN)")
 	if err != nil {
-		panic(fmt.Sprintf("Unable to create clauses table: %v", err))
+		panic(fmt.Sprintf("Unable to create clauses table statement: %v", err))
 	}
-	statement.Exec()
-	statement.Close()
+	defer statement.Close()
+	_, err = statement.Exec()
+	if err != nil {
+		panic(fmt.Sprintf("unable to execute create clauses table statement: %v", err))
+	}
 }

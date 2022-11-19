@@ -3,6 +3,7 @@ package repositories
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 
 	u "github.com/google/uuid"
@@ -10,36 +11,87 @@ import (
 	"github.com/tgrindinger/go-graphql-3sat-solver/graph/model"
 )
 
-func TestInsert(t *testing.T) {
+var dbName string = "testJobs.db"
+
+func init() {
+	os.Remove(dbName)
+}
+
+func TestInsertJob(t *testing.T) {
 	cases := []struct {
 		desc string
-		jobFunc func (uuid u.UUID) *model.Job
+		job *model.Job
 	}{
-		{ "no clauses", jobWithoutClauses },
-		{ "one clause", jobWithOneClause },
+		{ "no clauses", jobWithoutClauses(u.New()) },
+		{ "one clause", jobWithOneClause(u.New()) },
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// arrange
-			dbName := "testJobs.db"
-			uuid := u.New()
-			job := tc.jobFunc(uuid)
-			sut := NewSqliteJobRepository("testJobs.db")
+			sut := NewSqliteJobRepository(dbName)
 
 			// act
-			err := sut.InsertJob(job)
+			err := sut.InsertJob(tc.job)
 
 			// assert
 			if err != nil {
 				t.Fatalf("failed to insert job: %v", err)
 			}
-			verifyJobRow(t, job, dbName)
-			verifyClauseRows(t, job, dbName)
+			verifyJobRow(t, tc.job)
+			verifyClauseRows(t, tc.job)
 		})
 	}
 }
 
-func verifyJobRow(t testing.TB, job *model.Job, dbName string) {
+func TestFindJob(t *testing.T) {
+	cases := []struct {
+		desc string
+		want *model.Job
+	}{
+		{ "no clauses", jobWithoutClauses(u.New()) },
+		{ "one clause", jobWithOneClause(u.New()) },
+	}
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// arrange
+			sut := NewSqliteJobRepository(dbName)
+			err := sut.InsertJob(tc.want)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// act
+			got, err := sut.FindJob(tc.want.Uuid)
+
+			// assert
+			if err != nil {
+				t.Fatalf("failed to find job: %v", err)
+			}
+			verifyJobsAreEqual(t, got, tc.want)
+		})
+	}
+}
+
+func verifyJobsAreEqual(t testing.TB, got *model.Job, want *model.Job) {
+	if got.Uuid != want.Uuid || got.Done != want.Done || got.Name != want.Name {
+		t.Fatalf("got (%s %t %s) want (%s %t %s)", got.Uuid.String(), got.Done, got.Name, want.Uuid.String(), want.Done, want.Name)
+	}
+	if len(got.Clauses) != len(want.Clauses) {
+		t.Fatalf("wrong number of clauses: got %d want %d", len(got.Clauses), len(want.Clauses))
+	}
+	for index, clause := range want.Clauses {
+		gotClause := got.Clauses[index]
+		if gotClause.Var1.Name != clause.Var1.Name || gotClause.Var1.Negated != clause.Var1.Negated ||
+				gotClause.Var2.Name != clause.Var2.Name || gotClause.Var2.Negated != clause.Var2.Negated ||
+				gotClause.Var3.Name != clause.Var3.Name || gotClause.Var3.Negated != clause.Var3.Negated {
+			t.Errorf("clause %d got (%s %t %s %t %s %t) want (%s %t %s %t %s %t)", index,
+				gotClause.Var1.Name, gotClause.Var1.Negated, gotClause.Var2.Name, gotClause.Var2.Negated, gotClause.Var3.Name, gotClause.Var3.Negated,
+				clause.Var1.Name, clause.Var1.Negated, clause.Var2.Name, clause.Var2.Negated, clause.Var3.Name, clause.Var3.Negated)
+		}
+	}
+}
+
+func verifyJobRow(t testing.TB, job *model.Job) {
 	db, _ := sql.Open("sqlite3", dbName)
 	defer db.Close()
 	rows, _ := db.Query("SELECT uuid, done, name FROM jobs WHERE uuid = ?", job.Uuid.String())
@@ -62,7 +114,7 @@ func verifyJobRow(t testing.TB, job *model.Job, dbName string) {
 	}
 }
 
-func verifyClauseRows(t testing.TB, job *model.Job, dbName string) {
+func verifyClauseRows(t testing.TB, job *model.Job) {
 	db, _ := sql.Open("sqlite3", dbName)
 	defer db.Close()
 	rows, _ := db.Query("SELECT var1, var1negated, var2, var2negated, var3, var3negated FROM clauses WHERE uuid = ?", job.Uuid.String())
