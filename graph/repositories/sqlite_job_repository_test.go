@@ -72,6 +72,42 @@ func TestFindJob(t *testing.T) {
 	}
 }
 
+func TestMarkDone(t *testing.T) {
+	cases := []struct {
+		desc string
+		want *model.Job
+	}{
+		{ "incomplete marked as done", jobWithoutClauses(u.New()) },
+		{ "finished is unchanged", jobWithoutClauses(u.New(), func(j *model.Job) {
+			j.Done = true
+		}) },
+	}
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// arrange
+			sut := NewSqliteJobRepository(dbName)
+			err := sut.InsertJob(tc.want)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// act
+			err = sut.MarkDone(tc.want)
+
+			// assert
+			if err != nil {
+				t.Fatalf("unable to mark job done: %v", err)
+			}
+			got, err := sut.FindJob(tc.want.Uuid)
+			if err != nil {
+				t.Fatalf("failed to find job: %v", err)
+			}
+			tc.want.Done = true
+			verifyJobsAreEqual(t, got, tc.want)
+		})
+	}
+}
+
 func verifyJobsAreEqual(t testing.TB, got *model.Job, want *model.Job) {
 	if got.Uuid != want.Uuid || got.Done != want.Done || got.Name != want.Name {
 		t.Fatalf("got (%s %t %s) want (%s %t %s)", got.Uuid.String(), got.Done, got.Name, want.Uuid.String(), want.Done, want.Name)
@@ -150,16 +186,20 @@ func verifyClauseRow(t testing.TB, clause *model.Clause, rows *sql.Rows) {
 	}
 }
 
-func jobWithoutClauses(uuid u.UUID) *model.Job {
-	return &model.Job{
+func jobWithoutClauses(uuid u.UUID, postFuncs ...func(*model.Job)) *model.Job {
+	job := &model.Job{
 		Uuid: uuid,
 		Name: fmt.Sprintf("test-%s", uuid.String()),
 		Clauses: []*model.Clause{},
 	}
+	for _, post := range postFuncs {
+		post(job)
+	}
+	return job
 }
 
-func jobWithOneClause(uuid u.UUID) *model.Job {
-	return &model.Job{
+func jobWithOneClause(uuid u.UUID, postFuncs ...func(*model.Job)) *model.Job {
+	job := &model.Job{
 		Uuid: uuid,
 		Name: fmt.Sprintf("test-%s", uuid.String()),
 		Clauses: []*model.Clause{ {
@@ -178,4 +218,8 @@ func jobWithOneClause(uuid u.UUID) *model.Job {
 			},
 		},
 	}
+	for _, post := range postFuncs {
+		post(job)
+	}
+	return job
 }
